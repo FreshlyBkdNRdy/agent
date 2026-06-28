@@ -1,25 +1,23 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import { AgenticSystem } from './core/agent.js';
+import { AgenticSystem } from './agent.js';
 
 dotenv.config();
 
 const app = express();
 app.use(express.json());
 
-// Initialize the Agentic System
+// Initialize the agent without MCP server
 const agent = new AgenticSystem({
   model: 'gpt-4o',
-  mcpServerCommand: ['node', 'mcp-server.js'],
   allowedDir: './workspace',
-  maxSteps: 5,
-  latencyTimeoutMs: 10000
+  maxSteps: 5
 });
 
-// Boot up the agent and MCP connections before starting the server
+// Boot up the agent before starting the server
 async function startServer() {
   try {
-    console.log('Initializing Agentic System and MCP connections...');
+    console.log('Initializing Agentic System...');
     await agent.initialize();
     console.log('System initialized successfully!');
 
