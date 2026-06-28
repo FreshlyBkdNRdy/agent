@@ -1,0 +1,19 @@
+{
+  "name": "agentic-system",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^4.0.2",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ai": "^3.4.33",
+    "better-sqlite3": "^12.11.1",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.2",
+    "openai": "^4.104.0",
+    "zod": "^3.25.76"
+  }
+}
