@@ -1,12 +1,11 @@
 import { generateText, tool } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { z } from 'zod';
-import Database from 'better-sqlite3';
-import { Client as MCPClient } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import initSqlJs from 'sql.js';
 import fs from 'fs/promises';
 import path from 'path';
 import 'dotenv/config';
+import { systemPrompt as chloeSystemPrompt } from './prompts.js';
 
 // Simple cosine similarity for local vector search
 function cosineSimilarity(vecA, vecB) {
@@ -36,33 +35,28 @@ async function generateEmbedding(text) {
 export class AgenticSystem {
   constructor({ 
     model, 
-    mcpServerCommand,
     userId = 'marcos_default',
     allowedDir = './workspace',
     maxSteps = 5,
-    latencyTimeoutMs = 10000,
     dbPath = './memory.db'
   } = {}) {
     this.modelName = model || 'gpt-4o';
-    this.mcpServerCommand = mcpServerCommand;
     this.userId = userId;
     this.maxSteps = maxSteps;
-    this.latencyTimeoutMs = latencyTimeoutMs;
     
     this.allowedDir = path.resolve(allowedDir);
     this.allowedExtensions = ['.txt', '.md', '.json', '.csv', '.js', '.py'];
     this.maxFileSize = 5 * 1024 * 1024; 
     
-    this.mcpClient = null;
     this.tools = {};
-    
-    // Initialize local SQLite database
-    this.db = new Database(dbPath);
-    this.initDatabase();
+    this.dbPath = dbPath;
+    this.db = null;
   }
 
-  initDatabase() {
-    this.db.exec(`
+  async initDatabase() {
+    const SQL = await initSqlJs();
+    this.db = new SQL.Database();
+    this.db.run(`
       CREATE TABLE IF NOT EXISTS memories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id TEXT NOT NULL,
@@ -71,14 +65,12 @@ export class AgenticSystem {
         importance REAL DEFAULT 0.0,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
         memory_type TEXT NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_user_id ON memories(user_id);
-      CREATE INDEX IF NOT EXISTS idx_memory_type ON memories(memory_type);
+      )
     `);
   }
 
   async initialize() {
-    // 1. Native File Reading Tool
+    // Native File Reading Tool
     this.tools.readLocalFile = tool({
       description: 'Reads a local text file. Restricted to safe extensions and specific directories.',
       parameters: z.object({ filePath: z.string() }),
@@ -92,45 +84,22 @@ export class AgenticSystem {
         return await fs.readFile(absolutePath, 'utf-8');
       }
     });
-
-    // 2. MCP External Tools Integration
-    if (this.mcpServerCommand) {
-      const transport = new StdioClientTransport({ command: this.mcpServerCommand[0], args: this.mcpServerCommand.slice(1) });
-      this.mcpClient = new MCPClient({ name: 'agentic-system', version: '1.0.0' }, { capabilities: {} });
-      await this.mcpClient.connect(transport);
-
-      const { tools: mcpTools } = await this.mcpClient.listTools();
-      for (const mcpTool of mcpTools) {
-        this.tools[mcpTool.name] = tool({
-          description: mcpTool.description || 'External MCP tool',
-          parameters: this.convertJsonSchemaToZod(mcpTool.inputSchema),
-          execute: async (args) => {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), this.latencyTimeoutMs);
-            try {
-              const result = await this.mcpClient.callTool({ name: mcpTool.name, arguments: args }, undefined, { signal: controller.signal });
-              return result.content;
-            } catch (error) {
-              if (error.name === 'AbortError') throw new Error(`Tool ${mcpTool.name} exceeded latency limit.`);
-              throw error; 
-            } finally { clearTimeout(timeout); }
-          }
-        });
-      }
-    }
   }
 
   async getMemoryContext(userMessage) {
     try {
+      if (!this.db) return '';
+      
       const queryEmbedding = await generateEmbedding(userMessage);
       
-      const memories = this.db.prepare(`
+      const stmt = this.db.prepare(`
         SELECT id, content, embedding, importance, memory_type, timestamp
         FROM memories
         WHERE user_id = ? AND memory_type IN ('constraint', 'preference', 'invariant')
         ORDER BY timestamp DESC
         LIMIT 50
-      `).all(this.userId);
+      `);
+      const memories = stmt.all(this.userId);
 
       if (memories.length === 0) return '';
 
@@ -207,7 +176,8 @@ export class AgenticSystem {
     async execute(userMessage) {
     try {
       const memoryContext = await this.getMemoryContext(userMessage);
-      const dynamicSystemPrompt = `You are Chloe. ${memoryContext}\n\nUse <thinking> blocks to reason step-by-step and decode latent intent.`;
+      // Use the full Chloe persona from prompts.js, augmented with memory context
+      const dynamicSystemPrompt = `${chloeSystemPrompt}${memoryContext ? '\n\n' + memoryContext : ''}`;
 
       const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
       const model = openai(this.modelName);
@@ -252,7 +222,6 @@ export class AgenticSystem {
   }
 
   cleanup() {
-    if (this.mcpClient) this.mcpClient.close();
     this.db.close();
   }
 }

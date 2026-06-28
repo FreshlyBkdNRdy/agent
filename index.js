@@ -1,15 +1,13 @@
-import { AgenticSystem } from './core/agent.js';
+import { AgenticSystem } from './agent.js';
 import 'dotenv/config';
 import readline from 'readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 
-// Initialize WITHOUT MCP server for now (add it later when you have one)
+// Initialize the agent without MCP server
 const agent = new AgenticSystem({
   model: process.env.MODEL?.trim() || 'gpt-4o',
   allowedDir: './workspace',
-  maxSteps: 5,
-  latencyTimeoutMs: 10000,
-  mcpServerCommand: null // DISABLED - no MCP server yet
+  maxSteps: 5
 });
 
 async function interactiveChat() {
