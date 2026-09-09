@@ -126,7 +126,10 @@ export class AgenticSystem {
         ORDER BY timestamp DESC
         LIMIT 50
       `);
-      const memories = stmt.all(this.userId);
+      stmt.bind([this.userId]);
+      const memories = [];
+      while (stmt.step()) memories.push(stmt.getAsObject());
+      stmt.free();
 
       if (memories.length === 0) return '';
 

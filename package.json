@@ -7,7 +7,7 @@
     "dev": "node --watch server.js"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^4.0.2",
+    "@ai-sdk/openai": "^0.0.72",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ai": "^3.4.33",
     "better-sqlite3": "^12.11.1",
