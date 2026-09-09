@@ -80,6 +80,7 @@ Send a message:
 
 - **Chloe cannot answer:** confirm `.env` contains a valid `DEEPSEEK_API_KEY`, then restart the server.
 - **The page does not load:** confirm the terminal shows `Server running on http://localhost:3000` and use that exact URL.
+- **PowerShell says `npm.ps1` cannot be loaded:** use `npm.cmd start` and `npm.cmd install`, or run `node server.js` directly. This avoids changing your PowerShell execution policy.
 - **Port 3000 is busy:** start with another port in PowerShell: `$env:PORT=3001; npm start`, then open `http://localhost:3001`.
 
 ## Tools and autonomous work
